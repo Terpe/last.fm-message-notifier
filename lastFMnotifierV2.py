@@ -29,24 +29,35 @@ class inboxChecker:
             print("Failed to login. Reason:", p.reason)
          
 
-    def poll(self):
+    def poll(self, interval):
         '''Check inbox and parse html with regex pattern to chceck presence of unread message(s)'''
-
+        # schedule next run via sched.scheduler object - self.timer
+        self.timer.enter(int(interval), 1, self.poll, argument=(interval,))
         p = self.FMsession.get('https://www.last.fm/inbox')
         m = re.search("inbox-message--unviewed", p.text)
         try:
             if m.group(0) == "inbox-message--unviewed":
+                print('TRUE')
                 return True
         except AttributeError:
+            print('FALSE')
             return False
            
 
     def notify(self):
-        '''Trigger OSX desktop notification via AppleScript'''
+         '''Trigger OSX desktop notification via AppleScript'''
          notificationText = """
          display notification "You have new message on Last.fm." with title "Last.fm message notifier"
          """
          subprocess.call("osascript -e '{}'".format(notificationText), shell=True)
+
+
+
+    def startPolling(self, interval):
+                '''Trigger periodical polling based on interval argument'''
+        self.timer = sched.scheduler(time.time, time.sleep)
+        self.timer.enter(int(interval), 1, self.poll, argument=(interval,))
+        self.timer.run()
 
 
 
