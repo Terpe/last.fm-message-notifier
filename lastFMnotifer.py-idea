@@ -1,0 +1,87 @@
+import requests
+import re
+import subprocess
+import sched
+import time
+import logging
+
+
+logging.basicConfig(level=logging.DEBUG, format=' %(asctime)s - %(levelname)s - %(message)s')
+#logging.disable(logging.DEBUG)
+
+
+
+
+### to do: try to rebuild the code to use only one session during the run of the whole program..., 
+### not to open new session and login every time the function check_inbox is called
+### maybe we could keep cookie in the session and further login is not needed.
+### If that works program just asks for credentials when running logs in and then does not need them to store it...
+### login(), check_inbox(), Notify()
+
+
+#lass inboxChecker:
+    
+#    def __init__(self):
+
+ #   def connect(self, Username, Password, Interval):
+
+
+
+
+
+notification = """
+display notification "You have new message on Last.fm." with title "Last.fm message notifier"
+"""
+
+
+
+'''
+
+def loginToLastFM(username, password):
+    s = requests.Session()
+    url = "https://secure.last.fm/login"
+    s.headers.update({'User-agent': 'Mozilla/5.0'})
+    csrf = s.get(url).cookies['csrftoken']
+    # put login url as Referer into header and pass csrf token along with credentials to login request (POST)
+    s.headers.update(dict(Referer=url))
+    return s
+'''
+
+
+def check_inbox(new_message_recieved=False): 
+    with requests.Session() as s:
+        logging.debug("Start...logging in..")
+        #load login url to get csrf token
+        url = "https://secure.last.fm/login"
+        s.headers.update({'User-agent': 'Mozilla/5.0'})
+        csrf = s.get(url).cookies['csrftoken']  
+        payload = dict(username=USERNAME, password=PASSWORD, csrfmiddlewaretoken=csrf, next='/inbox')
+        p = s.post(url, payload)
+        logging.debug("Logged in")       
+       # check for "unviewed" string in response from inbox
+        m = re.search("inbox-message--unviewed", p.text)
+        try:
+            if m.group(0) == "inbox-message--unviewed":
+                # we don't want to recieve further notifications after first notification occurs
+                if new_message_recieved == False:       
+                    print("New Message")
+                    subprocess.call("osascript -e '{}'".format(notification), shell=True)
+                    new_message_recieved = True 
+        except AttributeError:
+            new_message_recieved = False
+        # schedule next run after specified INTERVAL in seconds, pass the result of the check next function run
+        # supress further notifications if new message was already detected and notification was triggered
+        logging.debug("Check done.")
+    timer.enter(int(INTERVAL), 1, check_inbox, argument=new_message_recieved)
+
+
+timer = sched.scheduler(time.time, time.sleep)
+timer.enter(1, 1, check_inbox)
+# timer.enter(1, 1, check_inbox, argument=(s, csrf))  
+timer.run()
+
+
+
+
+
+
