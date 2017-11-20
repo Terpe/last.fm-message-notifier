@@ -6,21 +6,26 @@ import time
 import logging
 
 
-#logging.basicConfig(level=logging.DEBUG, format=' %(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format=' %(asctime)s - %(levelname)s - %(message)s')
 #logging.disable(logging.DEBUG)
+
+Username=''
+Password=''
+
 
 
 class inboxChecker:
     
     def __init__(self, Username, Password):
         '''Create InboxChecker object, login to Last.fm with credentials and prepare requests.Session object for further polling'''
+        self.UnreadMessageFlag = False
         s = requests.Session()
         s.headers.update({'User-agent': 'Mozilla/5.0'})
         url = "https://secure.last.fm/login"
         csrf = s.get(url).cookies['csrftoken']  
         payload = dict(username=Username, password=Password, csrfmiddlewaretoken=csrf, next='/inbox')
         s.headers.update({'Referer': 'https://secure.last.fm/login'})
-        print(s.headers)
+        logging.debug(s.headers)
         p = s.post(url, payload)
         if p.ok:
             self.FMsession = s
@@ -31,18 +36,23 @@ class inboxChecker:
 
     def poll(self, interval):
         '''Check inbox and parse html with regex pattern to chceck presence of unread message(s)'''
-        # schedule next run via sched.scheduler object - self.timer
-        self.timer.enter(int(interval), 1, self.poll, argument=(interval,))
         p = self.FMsession.get('https://www.last.fm/inbox')
+        # schedule next run of this method via sched.scheduler object - self.timer
+        self.timer.enter(int(interval), 1, self.poll, argument=(interval,))
         m = re.search("inbox-message--unviewed", p.text)
         try:
-            if m.group(0) == "inbox-message--unviewed":
-                print('TRUE')
-                return True
+            if m.group(0) == "inbox-message--unviewed" and not self.UnreadMessageFlag:
+                ## in case of unread message detected and UnreadMessageFlag was FALSE, new message >>  .notify()
+                logging.debug('TRUE')
+                self.notify()
+                self.UnreadMessageFlag = True
+            else: 
+                logging.debug('Unread Message, but already notified...')           
         except AttributeError:
-            print('FALSE')
-            return False
-           
+            ## "inbox-message--unviewed" is missing, set flag (back) to false
+            logging.debug('FALSE')
+            self.UnreadMessageFlag = False
+            
 
     def notify(self):
          '''Trigger OSX desktop notification via AppleScript'''
@@ -52,14 +62,15 @@ class inboxChecker:
          subprocess.call("osascript -e '{}'".format(notificationText), shell=True)
 
 
-
     def startPolling(self, interval):
-                '''Trigger periodical polling based on interval argument'''
+        '''Trigger periodical polling based on interval argument'''
         self.timer = sched.scheduler(time.time, time.sleep)
         self.timer.enter(int(interval), 1, self.poll, argument=(interval,))
         self.timer.run()
 
 
+checker = inboxChecker(Username, Password)
+checker.startPolling(5)
 
 if __name__ == "__main__":
     __main__()
