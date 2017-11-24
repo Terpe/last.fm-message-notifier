@@ -25,8 +25,12 @@ class inboxChecker:
         csrf = s.get(url).cookies['csrftoken']  
         payload = dict(username=Username, password=Password, csrfmiddlewaretoken=csrf, next='/inbox')
         s.headers.update({'Referer': 'https://secure.last.fm/login'})
-        logging.debug(s.headers)
         p = s.post(url, payload)
+        ## it seems that we get 200 even after submitting emptpty strings as user,pass ???
+        ## in p.text is already content of inbox. 
+        ## TODO: i could use it for the first check. probably create new method 
+        ## which implements just html parsing in order to separate parsing  logic from polling logic
+        ## parsing logic can also be enhanced in future 
         if p.ok:
             self.FMsession = s
         else:
@@ -34,11 +38,9 @@ class inboxChecker:
             print("Failed to login. Reason:", p.reason)
          
 
-    def poll(self, interval):
+    def poll(self, interval, Timer=True):
         '''Check inbox and parse html with regex pattern to chceck presence of unread message(s)'''
         p = self.FMsession.get('https://www.last.fm/inbox')
-        # schedule next run of this method via sched.scheduler object - self.timer
-        self.timer.enter(int(interval), 1, self.poll, argument=(interval,))
         m = re.search("inbox-message--unviewed", p.text)
         try:
             if m.group(0) == "inbox-message--unviewed" and not self.UnreadMessageFlag:
@@ -52,6 +54,10 @@ class inboxChecker:
             ## "inbox-message--unviewed" is missing, set flag (back) to false
             logging.debug('FALSE')
             self.UnreadMessageFlag = False
+        # schedule next run of this method via sched.scheduler object - self.timer
+        if Timer:
+            self.timer.enter(int(interval), 1, self.poll, argument=(interval,))
+
             
 
     def notify(self):
@@ -65,13 +71,12 @@ class inboxChecker:
     def startPolling(self, interval):
         '''Trigger periodical polling based on interval argument'''
         self.timer = sched.scheduler(time.time, time.sleep)
+        self.poll(interval, Timer=False)
         self.timer.enter(int(interval), 1, self.poll, argument=(interval,))
         self.timer.run()
-
+        
 
 checker = inboxChecker(Username, Password)
-checker.startPolling(5)
+checker.startPolling(300)
 
-if __name__ == "__main__":
-    __main__()
 
